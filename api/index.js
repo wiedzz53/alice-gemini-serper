@@ -1,4 +1,5 @@
 export default async function handler(request, response) {
+  // CORS заголовки
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,89 +13,15 @@ export default async function handler(request, response) {
   }
 
   try {
-    const body = request.body;
-    
-    // Правильное поле от Яндекс Диалогов
-    const userMessage = body?.request?.original_utterance || body?.request?.command || '';
-    const sessionId = body?.session?.session_id || '';
-    
-    const history = body?.state?.session?.history || [];
-    
-    const messages = [
-      { role: 'system', content: 'Ты — дружелюбный голосовой ассистент Алиса. Отвечай кратко, по делу, на русском языке. Максимум 2-3 предложения.' },
-      ...history.map(h => ({ role: h.role, content: h.content })),
-      { role: 'user', content: userMessage }
-    ];
+    console.log('Request received:', JSON.stringify(request.body));
 
-    const openrouterKey = process.env.OPENROUTER_API_KEY;
-    const serperKey = process.env.SERPER_API_KEY;
-
-    let finalMessage = userMessage;
-
-    if (serperKey && userMessage.length > 2) {
-      try {
-        const searchRes = await fetch('https://google.serper.dev/search', {
-          method: 'POST',
-          headers: {
-            'X-API-KEY': serperKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ q: userMessage, num: 3 })
-        });
-        const searchData = await searchRes.json();
-        if (searchData.organic && searchData.organic.length > 0) {
-          const snippets = searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join('\n');
-          finalMessage = `Вопрос: ${userMessage}\n\nРезультаты поиска:\n${snippets}\n\nОтветь на вопрос, используя эти данные.`;
-        }
-      } catch (e) {
-        console.error('Serper error:', e);
-      }
-    }
-
-    messages[messages.length - 1].content = finalMessage;
-
-    const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openrouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://alice-gemini-serper-amber-pi.vercel.app',
-        'X-Title': 'Alice Skill'
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3-8b-instruct:free',
-        messages: messages,
-        max_tokens: 300,
-        temperature: 0.7
-      })
-    });
-
-    const aiData = await aiRes.json();
-
-    let reply = 'Извините, я не смогла ответить. Попробуйте ещё раз.';
-    if (aiData?.choices?.[0]?.message?.content) {
-      reply = aiData.choices[0].message.content.trim();
-    }
-
-    if (reply.length > 1024) {
-      reply = reply.substring(0, 1021) + '...';
-    }
-
-    const newHistory = [
-      ...history,
-      { role: 'user', content: userMessage },
-      { role: 'assistant', content: reply }
-    ].slice(-10);
-
+    // Возвращаем простой ответ без обращения к AI
     return response.status(200).json({
       version: '1.0',
       response: {
-        text: reply,
-        tts: reply,
+        text: 'Привет! Я работаю.',
+        tts: 'Привет! Я работаю.',
         end_session: false
-      },
-      session_state: {
-        history: newHistory
       }
     });
 
@@ -103,8 +30,8 @@ export default async function handler(request, response) {
     return response.status(500).json({
       version: '1.0',
       response: {
-        text: 'Произошла ошибка. Попробуйте позже.',
-        tts: 'Произошла ошибка. Попробуйте позже.',
+        text: 'Ошибка сервера.',
+        tts: 'Ошибка сервера.',
         end_session: false
       }
     });
